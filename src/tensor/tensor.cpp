@@ -220,10 +220,10 @@ size_t stride = 1;
 
 if (!shape.empty()) {
     // 安全的 size_t 逆序循环写法
-    for (size_t i = shape.size(); i-- > 0; ) {
-        new_strides[i] = static_cast<ptrdiff_t>(stride);
-        stride *= shape[i];
-    }
+    for (size_t idx = shape.size(); idx-- > 0; ) {
+    new_strides[idx] = stride;
+    stride *= shape[idx];
+}
 }
 
     TensorMeta new_meta{_meta.dtype,shape,new_strides};
