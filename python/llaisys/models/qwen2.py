@@ -163,5 +163,10 @@ class Qwen2:
         return tokens
     
     def __del__(self):
-        if hasattr(self, '_model_handle') and self._model_handle:
-             LIB_LLAISYS.llaisysQwen2ModelDestroy(self._model_handle)
+        try:
+            if hasattr(self, '_model_handle') and self._model_handle:
+                if LIB_LLAISYS and hasattr(LIB_LLAISYS, 'llaisysQwen2ModelDestroy'):
+                    LIB_LLAISYS.llaisysQwen2ModelDestroy(self._model_handle)
+                    self._model_handle = None
+        except:
+            pass
