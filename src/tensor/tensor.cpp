@@ -216,12 +216,15 @@ tensor_t Tensor::view(const std::vector<size_t> &shape) const {
         return nullptr;
     }
     std::vector<ptrdiff_t> new_strides(shape.size());
-    size_t stride=1;
-    for((size_t i=shape.size()-1;i>=0;i--)
-    {
-        new_strides[i]=stride;
-        stride*=shape[i];
+size_t stride = 1;
+
+if (!shape.empty()) {
+    // 安全的 size_t 逆序循环写法
+    for (size_t i = shape.size(); i-- > 0; ) {
+        new_strides[i] = static_cast<ptrdiff_t>(stride);
+        stride *= shape[i];
     }
+}
 
     TensorMeta new_meta{_meta.dtype,shape,new_strides};
     return std::shared_ptr<Tensor>(new Tensor(new_meta, _storage, _offset));
