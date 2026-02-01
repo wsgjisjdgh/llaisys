@@ -265,48 +265,37 @@ void Tensor::load(const void *src_) {
 }
 
 tensor_t Tensor::contiguous() const {
-// 1. 如果本来就是连续的，零拷贝返回
     if (this->isContiguous()) {
         return std::shared_ptr<Tensor>(new Tensor(_meta, _storage, _offset));
     }
-
-    // 2. 创建新张量 (自动分配连续内存)
     auto res = Tensor::create(
         this->shape(), this->dtype(), this->deviceType(), this->deviceId()
     );
 
-    // 3. 准备指针和参数
-    // 我们把所有数据都看作 char* (字节)，这样就不需要 switch-case 分类型了
     char* dst_ptr = reinterpret_cast<char*>(res->data());
     const char* src_base = reinterpret_cast<const char*>(this->data());
     
-    size_t elem_size = this->elementSize();     // 每个元素几字节
+    size_t elem_size = this->elementSize();    
     const auto& shape = this->shape();
     const auto& strides = this->strides();
     size_t ndim = this->ndim();
 
-    // 4. 定义一个递归 lambda 函数来搬运数据
-    // 参数：dim (当前维度), src_offset (源数据的字节偏移量)
     std::function<void(size_t, size_t)> recursive_copy = 
         [&](size_t dim, size_t src_offset) {
             
-        // 边界情况：如果是标量 (ndim=0)，直接拷
         if (ndim == 0) {
             std::memcpy(dst_ptr, src_base, elem_size);
             dst_ptr += elem_size;
             return;
         }
 
-        // 递归出口：到了最后一维
         if (dim == ndim - 1) {
             size_t stride_bytes = strides[dim] * elem_size;
             for (size_t i = 0; i < shape[dim]; ++i) {
-                // 核心搬运：从源地址(跳跃) -> 目标地址(连续)
                 std::memcpy(dst_ptr, src_base + src_offset + i * stride_bytes, elem_size);
-                dst_ptr += elem_size; // 目标指针永远自动前进
+                dst_ptr += elem_size; 
             }
         } else {
-            // 中间维度：继续深入下一层
             size_t stride_bytes = strides[dim] * elem_size;
             for (size_t i = 0; i < shape[dim]; ++i) {
                 recursive_copy(dim + 1, src_offset + i * stride_bytes);
@@ -314,7 +303,6 @@ tensor_t Tensor::contiguous() const {
         }
     };
 
-    // 5. 开始递归
     if (this->deviceType() == LLAISYS_DEVICE_CPU) {
         recursive_copy(0, 0);
     } else {
@@ -333,40 +321,30 @@ tensor_t Tensor::reshape(const std::vector<size_t> &shape) const {
         return nullptr;
     }
 
-    // 策略：先尝试 view，如果不行（报错/返回空），就先 contiguous 再 view
-    // 由于你现在的 view 实现里会检测 contiguous，我们可以利用这一点
     
     if (this->isContiguous()) {
         return this->view(shape);
     } else {
-        // 如果不连续，先变连续（发生物理拷贝），再改变形状
         return this->contiguous()->view(shape);
     }
 }
 
 tensor_t Tensor::to(llaisysDeviceType_t device_type, int device) const {
-   // 1. 如果目标设备和当前一致，直接返回浅拷贝
     if (device_type == this->deviceType() && device == this->deviceId()) {
-        // 注意：这里必须带上 _offset
         return std::shared_ptr<Tensor>(new Tensor(_meta, _storage, _offset));
     }
 
-    // 2. 关键一步：先转成连续张量！
-    // 为什么？因为 memcpy 只能拷一段连续的内存。如果不连续，我们没法一次性拷过去。
     tensor_t src_contiguous = this->contiguous();
 
-    // 3. 在目标设备创建新 Tensor
+
     auto res = Tensor::create(src_contiguous->shape(), src_contiguous->dtype(), device_type, device);
 
-    // 4. 准备拷贝参数
     void *dst_ptr = res->data();
     const void *src_ptr = src_contiguous->data();
     size_t size = src_contiguous->numel() * src_contiguous->elementSize();
 
-    // 5. 判断拷贝方向 (H2D, D2H, D2D)
     llaisysMemcpyKind_t kind;
-    
-    // 定义一些辅助 bool 变量让逻辑更清晰
+
     bool is_src_gpu = (this->deviceType() == LLAISYS_DEVICE_NVIDIA);
     bool is_dst_gpu = (device_type == LLAISYS_DEVICE_NVIDIA);
 
@@ -380,7 +358,6 @@ tensor_t Tensor::to(llaisysDeviceType_t device_type, int device) const {
         kind = LLAISYS_MEMCPY_H2H; // Host -> Host (CPU to CPU)
     }
 
-    // 6. 执行拷贝
     core::context().runtime().api()->memcpy_sync(dst_ptr, src_ptr, size, kind);
 
     return res;
