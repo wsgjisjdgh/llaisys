@@ -16,6 +16,11 @@ option_end()
 if has_config("nv-gpu") then
     add_defines("ENABLE_NVIDIA_API")
     includes("xmake/nvidia.lua")
+
+    if is_plat("linux") then
+        add_sysincludedirs("/usr/local/cuda/include")
+        add_linkdirs("/usr/local/cuda/lib64")
+    end
 end
 
 target("llaisys-utils")
@@ -128,13 +133,22 @@ target("llaisys")
     add_deps("llaisys-tensor")
     add_deps("llaisys-ops")
     add_deps("llaisys-models")
+    add_deps("llaisys-device-cpu")
+    add_deps("llaisys-ops-cpu")
 
     set_languages("cxx17")
     set_warnings("all", "error")
     if has_config("nv-gpu") then
-       set_toolset("sh", "nvcc")
+        add_deps("llaisys-device-nvidia")
+        add_deps("llaisys-ops-nvidia")
+        if is_plat("linux") then
+           add_syslinks("cudart", "cublas")
+           add_shflags("-Xcompiler -fPIC") 
+       end
 
-        add_syslinks("cudart")
+        set_toolset("sh", "nvcc")
+
+        add_syslinks("cudart", "cublas")
         
         if not is_plat("windows") then
              add_cxflags("-fPIC")

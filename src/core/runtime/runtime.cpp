@@ -2,6 +2,9 @@
 
 #include "../../device/runtime_api.hpp"
 #include "../allocator/naive_allocator.hpp"
+#ifdef ENABLE_NVIDIA_API
+#include "../../device/nvidia/nvidia_resource.cuh"
+#endif
 
 namespace llaisys::core {
 Runtime::Runtime(llaisysDeviceType_t device_type, int device_id)
@@ -9,6 +12,9 @@ Runtime::Runtime(llaisysDeviceType_t device_type, int device_id)
     _api = llaisys::device::getRuntimeAPI(_device_type);
     _stream = _api->create_stream();
     _allocator = new allocators::NaiveAllocator(_api);
+    if (device_type == LLAISYS_DEVICE_NVIDIA) {
+        _device_resource = new llaisys::device::nvidia::Resource(device_id);
+    }
 }
 
 Runtime::~Runtime() {
@@ -19,6 +25,10 @@ Runtime::~Runtime() {
     _allocator = nullptr;
     _api->destroy_stream(_stream);
     _api = nullptr;
+    if (_device_resource) {
+        delete _device_resource;
+        _device_resource = nullptr;
+    }
 }
 
 void Runtime::_activate() {
