@@ -327,6 +327,7 @@ tensor_t Tensor::reshape(const std::vector<size_t> &shape) const {
     } else {
         return this->contiguous()->view(shape);
     }
+    
 }
 
 tensor_t Tensor::to(llaisysDeviceType_t device_type, int device) const {

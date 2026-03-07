@@ -26,41 +26,34 @@ __device__ __forceinline__ T warpReduceSum(T val)
 template<typename T>
 __device__ __forceinline__ T blockReduceSum(T val)
 {
-    // 1. 分配两组共享内存：数组用于中间规约，单变量用于最终广播
     __shared__ T shared_val[32];
     __shared__ T final_val;
 
     int lane = threadIdx.x % 32;
     int wid = threadIdx.x / 32;
 
-    // 阶段 1：Warp 内规约
     val = warpReduceSum(val);
 
-    // 阶段 2：各 Warp 结果落盘
     if(lane == 0)
     {
         shared_val[wid] = val;
     }
     __syncthreads();
 
-    // 阶段 3：唤醒 Warp 0 进行最终规约 (注意此处的括号修复)
     int num_warps = (blockDim.x + 31) / 32;
     val = (threadIdx.x < num_warps) ? shared_val[lane] : (T)(0.0f);
     
     if(wid == 0)
     {
         val = warpReduceSum(val);
-        // Thread 0 掌握绝对真理，将其写入广播信道
         if(threadIdx.x == 0)
         {
             final_val = val;
         }
     }
     
-    // 阶段 4：强制屏障，确保所有线程等待 Thread 0 写入完毕
     __syncthreads();
     
-    // 全员读取一致的正确结果并返回
     return final_val;
 }
 
